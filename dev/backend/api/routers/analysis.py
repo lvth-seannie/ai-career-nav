@@ -1,16 +1,17 @@
 """Career analysis: skill gap + roadmap + recommendation.
 
-Phase 2: deterministic. Required skills come from the curated role map
-(api/data/role_skill_map.py); the gap and roadmap are pure Python
-(api/services/); the recommendation is templated
-(api/services/recommendation.py).
-
-Phase 3: replace the templated recommendation and the roadmap descriptions
-with api/ai/openai_client.py, keeping this deterministic path as the fallback.
+Required skills come from the curated role map (api/data/role_skill_map.py);
+the gap and roadmap skeleton are pure Python (api/services/). The
+`recommendation` sentence and roadmap `description` strings come from
+api/ai/gemini_client.py when GEMINI_API_KEY is set; otherwise (no key,
+timeout, malformed response) this falls back to the deterministic templates
+in api/services/recommendation.py and api/services/roadmap.py, so the
+endpoint never fails because of the AI call.
 """
 from ninja import Router
 from ninja.errors import HttpError
 
+from api.ai.gemini_client import narrate
 from api.data.role_skill_map import known_roles
 from api.schemas import AnalyzeIn, AnalyzeOut
 from api.services import roadmap
@@ -47,10 +48,13 @@ def analyze(request, payload: AnalyzeIn):
         raise HttpError(400, f"Unknown targetRole '{target_role}'. Known roles: {known}")
 
     gap = analyse(target_role, skills)
+    ai = narrate(target_role, gap)
+    recommendation = ai["recommendation"] if ai else fallback_recommendation(target_role, gap)
+    descriptions = ai["descriptions"] if ai else None
     return {
         "matchScore": gap.match_score,
         "strengths": gap.strengths,
         "missingSkills": gap.missing,
-        "roadmap": roadmap.build(gap.missing),
-        "recommendation": fallback_recommendation(target_role, gap),
+        "roadmap": roadmap.build(gap.missing, descriptions),
+        "recommendation": recommendation,
     }

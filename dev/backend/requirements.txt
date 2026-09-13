@@ -7,5 +7,5 @@ psycopg2-binary==2.9.12
 dj-database-url==3.1.2
 python-dotenv==1.2.3
 
-# AI — used from Phase 3 onward (api/ai/openai_client.py). Not yet imported.
-openai==1.109.1
+# AI — Gemini (Google AI Studio) REST client, api/ai/gemini_client.py.
+httpx==0.28.1

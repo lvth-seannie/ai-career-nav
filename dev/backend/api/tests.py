@@ -5,13 +5,17 @@ See docs/BACKEND_SPEC.md §3 / §4.3. Run with:  python manage.py test api
 The test DB has no `jobs` / `job_skill` tables, so market-insights exercises
 the stub fallback path here.
 """
+from unittest.mock import patch
+
 from django.test import SimpleTestCase, TestCase
 
+from api.ai import gemini_client
 from api.data.role_skill_map import classify_title
 from api.repositories import jobs_repo
 from api.services import market_insights
 from api.services.roadmap import build as build_roadmap
 from api.services.skill_matching import diff
+from api.services.skill_matching import SkillGap
 from api.services.skills import display, normalize
 
 
@@ -112,6 +116,84 @@ class RoadmapTests(SimpleTestCase):
         self.assertEqual([s["phase"] for s in steps], ["Phase 1", "Phase 2", "Phase 3"])
         self.assertEqual([s["skill"] for s in steps], ["Python", "Spark", "Airflow"])
         self.assertTrue(all(s["description"] for s in steps))
+
+    def test_ai_description_used_when_present_templated_otherwise(self):
+        steps = build_roadmap(["Python", "Spark"], descriptions={"python": "Learn Python via X."})
+        self.assertEqual(steps[0]["description"], "Learn Python via X.")
+        self.assertIn("Spark", steps[1]["description"])
+
+
+class GeminiClientTests(SimpleTestCase):
+    def setUp(self):
+        gemini_client.clear_cache()
+        self.addCleanup(gemini_client.clear_cache)
+        self.gap = SkillGap(
+            required=["Python", "Spark"], strengths=["Python"], missing=["Spark"], match_score=50,
+        )
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_no_api_key_returns_none(self):
+        self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.httpx.post", side_effect=gemini_client.httpx.TimeoutException("boom"))
+    def test_transport_error_returns_none(self, _mock_post):
+        self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.httpx.post")
+    def test_parses_response_and_caches(self, mock_post):
+        mock_post.return_value.raise_for_status.return_value = None
+        mock_post.return_value.json.return_value = {
+            "candidates": [{
+                "content": {"parts": [{"text": (
+                    '{"recommendation": "Go learn Spark.", '
+                    '"roadmap": [{"skill": "Spark", "description": "Do a Spark project."}]}'
+                )}]},
+            }],
+        }
+
+        result = gemini_client.narrate("Data Engineer", self.gap)
+        self.assertEqual(result["recommendation"], "Go learn Spark.")
+        self.assertEqual(result["descriptions"]["spark"], "Do a Spark project.")
+
+        gemini_client.narrate("Data Engineer", self.gap)
+        mock_post.assert_called_once()  # second call served from cache
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.httpx.post")
+    def test_malformed_response_returns_none(self, mock_post):
+        mock_post.return_value.raise_for_status.return_value = None
+        mock_post.return_value.json.return_value = {"candidates": []}
+        self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+
+
+class AnalyzeWithAiTests(TestCase):
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.routers.analysis.narrate")
+    def test_uses_ai_narration_when_available(self, mock_narrate):
+        mock_narrate.return_value = {
+            "recommendation": "AI says: focus on Spark.",
+            "descriptions": {"spark": "AI: build a Spark ETL job."},
+        }
+        r = self.client.post(
+            "/api/analyze",
+            data={"targetRole": "Data Engineer", "currentSkills": ["Python", "SQL", "Docker"]},
+            content_type="application/json",
+        )
+        body = r.json()
+        self.assertEqual(body["recommendation"], "AI says: focus on Spark.")
+        spark_step = next(s for s in body["roadmap"] if s["skill"] == "Spark")
+        self.assertEqual(spark_step["description"], "AI: build a Spark ETL job.")
+
+    @patch("api.routers.analysis.narrate", return_value=None)
+    def test_falls_back_to_templates_when_ai_unavailable(self, _mock_narrate):
+        r = self.client.post(
+            "/api/analyze",
+            data={"targetRole": "Data Engineer", "currentSkills": ["SQL", "Docker"]},
+            content_type="application/json",
+        )
+        self.assertIn("Focus next on", r.json()["recommendation"])
 
 
 class MarketSnapshotTests(SimpleTestCase):
