@@ -102,6 +102,9 @@ import dj_database_url
 if 'test' in sys.argv:
     # Tests run against a local throwaway SQLite DB — no Supabase round-trip.
     DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
+    # ...and never call the real Gemini API, even if the developer's local
+    # .env has a real GEMINI_API_KEY — tests must stay hermetic and fast.
+    os.environ.pop('GEMINI_API_KEY', None)
 else:
     DATABASES = {
         'default': dj_database_url.config(

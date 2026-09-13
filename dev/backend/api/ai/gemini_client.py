@@ -17,15 +17,28 @@ import os
 import time
 
 import httpx
+import truststore
 
 from api.services.skill_matching import SkillGap
 
 logger = logging.getLogger(__name__)
 
+# Verify TLS against the OS trust store instead of certifi's bundled CAs.
+# Needed on machines where a local proxy/EDR intercepts HTTPS (its root CA is
+# trusted by Windows/macOS but not by certifi) — see BACKEND_SPEC known risks.
+truststore.inject_into_ssl()
+
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-_DEFAULT_MODEL = "gemini-2.5-flash"
+_DEFAULT_MODEL = "gemini-flash-latest"
 _TIMEOUT = httpx.Timeout(8.0, connect=4.0)
 _CACHE_TTL = 60 * 60  # seconds — repeated demo runs with the same input are instant
+
+# 429/503 are transient (rate limit / model momentarily overloaded — common on
+# the free tier) and often succeed a couple seconds later. Other errors
+# (bad key, bad request, malformed response) are deterministic — retrying
+# them wastes the request budget, so only these two statuses get a retry.
+_RETRYABLE_STATUSES = {429, 503}
+_RETRY_DELAYS = (1.5, 3.0)  # seconds between attempts; len() + 1 = max attempts
 
 _RESPONSE_SCHEMA = {
     "type": "OBJECT",
@@ -105,18 +118,26 @@ def narrate(target_role: str, gap: SkillGap) -> dict | None:
             "temperature": 0.4,
         },
     }
-    try:
-        resp = httpx.post(
-            f"{_API_BASE}/{model}:generateContent",
-            json=body,
-            headers={"x-goog-api-key": api_key},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-        result = _parse(resp.json())
-    except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
-        logger.warning("Gemini narration failed, using deterministic fallback: %s", exc)
-        return None
+    url = f"{_API_BASE}/{model}:generateContent"
+    headers = {"x-goog-api-key": api_key}
+
+    result = None
+    for attempt, delay in enumerate((*_RETRY_DELAYS, None)):
+        try:
+            resp = httpx.post(url, json=body, headers=headers, timeout=_TIMEOUT)
+            resp.raise_for_status()
+            result = _parse(resp.json())
+            break
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in _RETRYABLE_STATUSES and delay is not None:
+                logger.info("Gemini %s, retrying in %.1fs", exc.response.status_code, delay)
+                time.sleep(delay)
+                continue
+            logger.warning("Gemini narration failed, using deterministic fallback: %s", exc)
+            return None
+        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
+            logger.warning("Gemini narration failed, using deterministic fallback: %s", exc)
+            return None
 
     if result is None:
         return None

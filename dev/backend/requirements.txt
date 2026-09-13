@@ -9,3 +9,4 @@ python-dotenv==1.2.3
 
 # AI — Gemini (Google AI Studio) REST client, api/ai/gemini_client.py.
 httpx==0.28.1
+truststore==0.10.4

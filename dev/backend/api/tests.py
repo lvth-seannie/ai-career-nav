@@ -5,8 +5,9 @@ See docs/BACKEND_SPEC.md §3 / §4.3. Run with:  python manage.py test api
 The test DB has no `jobs` / `job_skill` tables, so market-insights exercises
 the stub fallback path here.
 """
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 from django.test import SimpleTestCase, TestCase
 
 from api.ai import gemini_client
@@ -166,6 +167,58 @@ class GeminiClientTests(SimpleTestCase):
         mock_post.return_value.raise_for_status.return_value = None
         mock_post.return_value.json.return_value = {"candidates": []}
         self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+
+    def _overloaded_response(self, status_code):
+        resp = MagicMock()
+        resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "boom", request=MagicMock(), response=MagicMock(status_code=status_code)
+        )
+        return resp
+
+    def _ok_response(self):
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {
+            "candidates": [{
+                "content": {"parts": [{"text": (
+                    '{"recommendation": "Retried ok.", '
+                    '"roadmap": [{"skill": "Spark", "description": "Do it."}]}'
+                )}]},
+            }],
+        }
+        return resp
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.time.sleep")
+    @patch("api.ai.gemini_client.httpx.post")
+    def test_retries_on_503_then_succeeds(self, mock_post, mock_sleep):
+        mock_post.side_effect = [self._overloaded_response(503), self._ok_response()]
+
+        result = gemini_client.narrate("Data Engineer", self.gap)
+
+        self.assertEqual(result["recommendation"], "Retried ok.")
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.time.sleep")
+    @patch("api.ai.gemini_client.httpx.post")
+    def test_exhausts_retries_then_falls_back(self, mock_post, mock_sleep):
+        mock_post.return_value = self._overloaded_response(503)
+
+        self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+        self.assertEqual(mock_post.call_count, 3)  # initial attempt + 2 retries
+        self.assertEqual(mock_sleep.call_count, 2)
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "fake"})
+    @patch("api.ai.gemini_client.time.sleep")
+    @patch("api.ai.gemini_client.httpx.post")
+    def test_non_retryable_status_fails_immediately(self, mock_post, mock_sleep):
+        mock_post.return_value = self._overloaded_response(400)
+
+        self.assertIsNone(gemini_client.narrate("Data Engineer", self.gap))
+        self.assertEqual(mock_post.call_count, 1)
+        mock_sleep.assert_not_called()
 
 
 class AnalyzeWithAiTests(TestCase):
