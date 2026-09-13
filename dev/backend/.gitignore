@@ -3,3 +3,6 @@ dev/.venv/
 dev/__pycache__/
 *.pyc
 .DS_Store
+
+# Secrets — never commit
+.env
