@@ -1,8 +1,8 @@
 """Read-only access to the Data Engineering job-market tables.
 
-Agreed schema (see ../../../database/schema.sql +
-../../../database/data_dictionary.md — top-level database/ folder, sibling to
-backend/ and frontend/ — owned by Data Eng, created outside Django):
+Agreed schema (see ../../database/schema.sql +
+../../database/data_dictionary.md — database/ folder inside backend/ — owned
+by Data Eng, created outside Django):
 
     companies(id, name)
     skills(id, skill_name)

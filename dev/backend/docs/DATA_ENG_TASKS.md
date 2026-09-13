@@ -95,8 +95,8 @@ Giải phóng ~167 MB.
 
 ## Task 5 — Chốt tên cột `jobs` — ✅ ĐÃ CHỐT
 
-Schema thống nhất giờ là `../../database/schema.sql` + `../../database/data_dictionary.md`
-(repo root, thay cho `backend/database/schema.sql` đã xoá) — đã chốt dùng
+Schema thống nhất giờ là `../database/schema.sql` + `../database/data_dictionary.md`
+(thư mục `database/` nằm trong `backend/`) — đã chốt dùng
 `jobs.job_title`, khớp với bảng đang deploy. Không cần rename gì thêm.
 `jobs_repo._title_col()` vẫn giữ nguyên để né đề phòng, nhưng `job_title` là
 tên chính thức từ giờ.
@@ -150,5 +150,5 @@ candidates(id, dev_type, degree, years_code_pro, country)
 candidate_skills_mapping(candidate_id, skill_id)
 ```
 
-Nguồn chân lý schema: `../../database/schema.sql` + `../../database/data_dictionary.md`
-(repo root). Chi tiết backend: `docs/BACKEND_SPEC.md` §5.
+Nguồn chân lý schema: `../database/schema.sql` + `../database/data_dictionary.md`
+(trong `backend/`). Chi tiết backend: `docs/BACKEND_SPEC.md` §5.

@@ -57,7 +57,8 @@ a "demo data" chip. Setting them switches to "Live backend".
 | Var | Meaning |
 |---|---|
 | `DATABASE_URL` | Supabase Postgres connection string |
-| `OPENAI_API_KEY` | OpenAI key. If absent, backend uses the deterministic fallback (no crash) |
+| `GEMINI_API_KEY` | Gemini (Google AI Studio) key. If absent, backend uses the deterministic fallback (no crash) |
+| `GEMINI_MODEL` | Optional model override, default `gemini-2.5-flash` |
 | `DJANGO_SECRET_KEY` | Django secret (env-driven, not hardcoded) |
 | `DJANGO_DEBUG` | `true` / `false` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames for the deployed backend |
@@ -218,9 +219,12 @@ backend/
 │   │   ├── jobs_repo.py        # queries over the job-market tables
 │   │   └── applicants_repo.py  # queries over the Stack Overflow tables
 │   ├── ai/
-│   │   └── openai_client.py    # the ONLY module that imports `openai`; has a fallback
+│   │   └── gemini_client.py    # the ONLY module that calls Gemini; has a fallback
 │   └── data/
 │       └── role_skill_map.py   # curated role -> canonical required-skills mapping
+├── database/
+│   ├── schema.sql               # owned by Data Eng: agreed DDL (source of truth, see §5)
+│   └── data_dictionary.md       # owned by Data Eng: column-level definitions
 ├── db/
 │   └── init.sql                # owned by Data Eng: DDL + seed
 ├── requirements.txt            # pinned
@@ -291,9 +295,8 @@ To unblock backend development, the backend needs:
    populated; the normalised tables (`jobs`, `skills`, `companies`,
    `job_skills_mapping`) are still **empty**. Until the ETL runs,
    `/api/market-insights` serves the stub fallback.
-2. **Agreed schema** (`../../database/schema.sql` + `../../database/data_dictionary.md`,
-   top-level `database/` folder sibling to `backend/`/`frontend/` — supersedes
-   the old `backend/database/schema.sql`, deleted):
+2. **Agreed schema** (`../database/schema.sql` + `../database/data_dictionary.md`,
+   the `database/` folder inside `backend/`, sibling to `api/`/`core/`/`docs/`):
    ```
    companies(id, name)
    skills(id, skill_name)
@@ -349,7 +352,7 @@ VITE_N8N_WEBHOOK_URL=http://localhost:8000/api/analyze
 
 ### Phase 2 — Data + real logic — 🔨 IN PROGRESS
 
-Agreed normalised schema — `../../database/schema.sql` (see §5):
+Agreed normalised schema — `../database/schema.sql` (see §5):
 ```
 jobs(id, company_id, job_title, location, job_level, job_type)
 skills(id, skill_name)
@@ -392,9 +395,16 @@ companies(id, name)
 - [ ] Optional: SQL aggregation view from Data Eng instead of app-side grouping.
 
 ### Phase 3 — AI + production
-- [ ] `openai_client.py`: JSON-mode structured output, gap context in the prompt,
-      returns `recommendation` + roadmap descriptions. Deterministic fallback.
-- [ ] Timeouts + response caching.
+- [x] `api/ai/gemini_client.py`: calls Gemini (Google AI Studio) with
+      `responseSchema`-constrained JSON output, gap context in the prompt,
+      returns `recommendation` + per-skill roadmap descriptions. No key /
+      timeout / malformed response → `None`, and `POST /api/analyze`
+      (`api/routers/analysis.py`) falls back to the Phase 2 deterministic
+      templates (`api/services/recommendation.py`, `api/services/roadmap.py`).
+- [x] Timeout (8s) + in-process response caching by
+      `(targetRole, sorted(strengths), sorted(missingSkills))`, 1h TTL.
+- [ ] Swap `GEMINI_API_KEY` in and confirm live output quality; tune the
+      prompt in `gemini_client._prompt`.
 - [ ] Deployment: env-driven settings, gunicorn, Render config, static files;
       point `VITE_*` at the deployed URL.
 - [ ] Tests: `skill_matching` unit tests + one contract test per endpoint.
