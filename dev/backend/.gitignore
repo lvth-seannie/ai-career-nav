@@ -1,8 +1,8 @@
 *.csv
-dev/.venv/
-dev/__pycache__/
+.venv
+__pycache__
 *.pyc
 .DS_Store
 
-# Secrets — never commit
+# secrets — never commit
 .env
