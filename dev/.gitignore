@@ -1,0 +1,9 @@
+*.csv
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Secrets — never commit
+.env
+backend/.env
