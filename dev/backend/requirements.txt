@@ -10,3 +10,7 @@ python-dotenv==1.2.3
 # AI — Gemini (Google AI Studio) REST client, api/ai/gemini_client.py.
 httpx==0.28.1
 truststore==0.10.4
+
+# Deploy
+gunicorn==23.0.0 # gunicorn là 1 server production thay thế cho runserver
+whitenoise==6.11.0   # whitenoise là thư viện giúp Django đơn giản hóa việc Deploy bằng cách tự phục vụ file tĩnh mà không cần thêm 1 server phụ như Nginx
