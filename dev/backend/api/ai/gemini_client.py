@@ -30,13 +30,14 @@ truststore.inject_into_ssl()
 
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _DEFAULT_MODEL = "gemini-flash-latest"
-_TIMEOUT = httpx.Timeout(8.0, connect=4.0)
+_TIMEOUT = httpx.Timeout(20.0, connect=4.0)
 _CACHE_TTL = 60 * 60  # seconds — repeated demo runs with the same input are instant
 
-# 429/503 are transient (rate limit / model momentarily overloaded — common on
-# the free tier) and often succeed a couple seconds later. Other errors
-# (bad key, bad request, malformed response) are deterministic — retrying
-# them wastes the request budget, so only these two statuses get a retry.
+# 429/503 (rate limit / model momentarily overloaded — common on the free
+# tier) and read timeouts are transient and often succeed a couple seconds
+# later. Other errors (bad key, bad request, malformed response) are
+# deterministic — retrying them wastes the request budget, so only these get
+# a retry.
 _RETRYABLE_STATUSES = {429, 503}
 _RETRY_DELAYS = (1.5, 3.0)  # seconds between attempts; len() + 1 = max attempts
 
@@ -69,7 +70,7 @@ def _prompt(target_role: str, gap: SkillGap) -> str:
         f"A learner wants to become a {target_role}. "
         f"Skills they already have: {strengths}. "
         f"Required skills they are missing: {missing}. "
-        "Write one encouraging, specific recommendation (2-4 sentences) about how "
+        "Write one encouraging, specific recommendation (4-6 sentences) about how "
         "they should proceed, and — for EACH missing skill listed above, using "
         "that exact skill name — a one-sentence, actionable learning-plan "
         "description. Return only the requested JSON, no markdown."
@@ -131,6 +132,13 @@ def narrate(target_role: str, gap: SkillGap) -> dict | None:
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _RETRYABLE_STATUSES and delay is not None:
                 logger.info("Gemini %s, retrying in %.1fs", exc.response.status_code, delay)
+                time.sleep(delay)
+                continue
+            logger.warning("Gemini narration failed, using deterministic fallback: %s", exc)
+            return None
+        except httpx.TimeoutException as exc:
+            if delay is not None:
+                logger.info("Gemini timed out, retrying in %.1fs", delay)
                 time.sleep(delay)
                 continue
             logger.warning("Gemini narration failed, using deterministic fallback: %s", exc)

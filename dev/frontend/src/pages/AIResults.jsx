@@ -1,6 +1,6 @@
 import { CheckIcon, CrossIcon, SparkleIcon } from '../components/icons'
 
-function AIResults({ targetRole, results, status, errorMessage, isDemo }) {
+function AIResults({ targetRole, results, status, errorMessage }) {
   if (status === 'idle') {
     return (
       <div className="page">
@@ -46,7 +46,6 @@ function AIResults({ targetRole, results, status, errorMessage, isDemo }) {
         <h1 className="page-title">AI Results</h1>
         <p className="page-subtitle">
           Structured output from the AI pipeline for <strong>{targetRole}</strong>.
-          {isDemo && ' Currently showing demo output — connect VITE_N8N_WEBHOOK_URL to go live.'}
         </p>
       </header>
 
