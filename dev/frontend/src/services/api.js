@@ -2,9 +2,6 @@ import { mockMarketInsights } from '../data/mockInsights'
 import { generateDemoAnalysis } from '../data/mockAnalysis'
 
 // Backend integration points (see .env.example):
-// - VITE_N8N_WEBHOOK_URL     -> n8n webhook: validate input, query PostgreSQL,
-//                               calculate skill gap, build AI context, call
-//                               OpenAI/Claude, return structured JSON.
 // - VITE_MARKET_INSIGHTS_URL -> REST endpoint backed by the SQL aggregation
 //                               views over PostgreSQL (jobs, skills, companies, roles).
 // Leave either unset to keep running on local demo data.
