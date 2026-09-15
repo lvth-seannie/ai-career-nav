@@ -24,7 +24,7 @@ function MeterCard({ title, items }) {
   )
 }
 
-function MarketInsights({ data, status, errorMessage, isDemo }) {
+function MarketInsights({ data, status, errorMessage }) {
   if (status === 'loading') {
     return (
       <div className="page">
@@ -58,7 +58,6 @@ function MarketInsights({ data, status, errorMessage, isDemo }) {
         <h1 className="page-title">Market Insights</h1>
         <p className="page-subtitle">
           Aggregated live from the jobs, skills, companies and roles tables in PostgreSQL.
-          {isDemo && ' Currently showing demo data — connect VITE_MARKET_INSIGHTS_URL to go live.'}
         </p>
       </header>
 

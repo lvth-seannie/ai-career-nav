@@ -6,7 +6,7 @@ const NAV_ITEMS = [
   { id: 'results', label: 'AI Results', step: '3', icon: SparkleIcon },
 ]
 
-function Sidebar({ activePage, onNavigate, isOpen, onClose, isDemo }) {
+function Sidebar({ activePage, onNavigate, isOpen, onClose }) {
   return (
     <>
       <div className={`sidebar-scrim ${isOpen ? 'is-visible' : ''}`} onClick={onClose} />
@@ -40,12 +40,12 @@ function Sidebar({ activePage, onNavigate, isOpen, onClose, isDemo }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className={`status-chip ${isDemo ? 'is-demo' : 'is-live'}`}>
+          <div className="status-chip is-live">
             <span className="status-dot" />
-            {isDemo ? 'demo data' : 'Live backend'}
+            Live backend
           </div>
           <p className="sidebar-footer-note">
-            Job Dataset &rarr; PostgreSQL &rarr; n8n &rarr; OpenAI/Claude
+            Job Dataset &rarr; PostgreSQL &rarr; Django API &rarr; Gemini
           </p>
         </div>
       </aside>

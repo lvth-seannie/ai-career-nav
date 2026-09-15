@@ -1,15 +1,8 @@
 import { ArrowRightIcon } from '../components/icons'
 
-const ROLE_OPTIONS = [
-  'Data Analyst',
-  'Data Engineer',
-  'Business Analyst',
-  'Software Engineer',
-  'Product Manager',
-]
-
-function CareerAdvisor({ targetRole, setTargetRole, currentSkills, setCurrentSkills, onAnalyze, status, errorMessage }) {
+function CareerAdvisor({ roles, targetRole, setTargetRole, currentSkills, setCurrentSkills, onAnalyze, status, errorMessage }) {
   const isLoading = status === 'loading'
+  const rolesLoaded = roles.length > 0
 
   return (
     <div className="page">
@@ -32,12 +25,17 @@ function CareerAdvisor({ targetRole, setTargetRole, currentSkills, setCurrentSki
             className="input-field"
             value={targetRole}
             onChange={(event) => setTargetRole(event.target.value)}
+            disabled={!rolesLoaded}
           >
-            {ROLE_OPTIONS.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
+            {rolesLoaded ? (
+              roles.map((role) => (
+                <option key={role.id} value={role.label}>
+                  {role.label}
+                </option>
+              ))
+            ) : (
+              <option>Loading roles…</option>
+            )}
           </select>
         </div>
 

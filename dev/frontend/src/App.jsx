@@ -4,7 +4,7 @@ import { MenuIcon } from './components/icons'
 import CareerAdvisor from './pages/CareerAdvisor'
 import MarketInsights from './pages/MarketInsights'
 import AIResults from './pages/AIResults'
-import { fetchMarketInsights, submitCareerAnalysis } from './services/api'
+import { fetchMarketInsights, fetchRoles, submitCareerAnalysis } from './services/api'
 import './App.css'
 
 function parseSkills(rawSkills) {
@@ -20,9 +20,10 @@ function App() {
 
   const [targetRole, setTargetRole] = useState('Data Engineer')
   const [currentSkills, setCurrentSkills] = useState('Java, Spring Boot, SQL, REST API')
+  const [roles, setRoles] = useState([])
 
-  const [insights, setInsights] = useState({ status: 'loading', data: null, error: '', demo: false })
-  const [analysis, setAnalysis] = useState({ status: 'idle', data: null, error: '', demo: false })
+  const [insights, setInsights] = useState({ status: 'loading', data: null, error: '' })
+  const [analysis, setAnalysis] = useState({ status: 'idle', data: null, error: '' })
 
   useEffect(() => {
     let cancelled = false
@@ -30,11 +31,21 @@ function App() {
     fetchMarketInsights()
       .then((data) => {
         if (cancelled) return
-        setInsights({ status: 'success', data, error: '', demo: Boolean(data.demo) })
+        setInsights({ status: 'success', data, error: '' })
       })
       .catch((error) => {
         if (cancelled) return
-        setInsights({ status: 'error', data: null, error: error.message, demo: false })
+        setInsights({ status: 'error', data: null, error: error.message })
+      })
+
+    fetchRoles()
+      .then((data) => {
+        if (cancelled) return
+        setRoles(data)
+      })
+      .catch(() => {
+        // Role list is only used to populate the advisor dropdown; a fetch
+        // failure there surfaces via the /analyze error instead.
       })
 
     return () => {
@@ -51,22 +62,20 @@ function App() {
     const skills = parseSkills(currentSkills)
 
     if (!targetRole || skills.length === 0) {
-      setAnalysis({ status: 'error', data: null, error: 'Please provide a target role and at least one skill.', demo: false })
+      setAnalysis({ status: 'error', data: null, error: 'Please provide a target role and at least one skill.' })
       return
     }
 
-    setAnalysis({ status: 'loading', data: null, error: '', demo: false })
+    setAnalysis({ status: 'loading', data: null, error: '' })
 
     try {
       const data = await submitCareerAnalysis({ targetRole, currentSkills: skills })
-      setAnalysis({ status: 'success', data, error: '', demo: Boolean(data.demo) })
+      setAnalysis({ status: 'success', data, error: '' })
       setActivePage('results')
     } catch (error) {
-      setAnalysis({ status: 'error', data: null, error: error.message, demo: false })
+      setAnalysis({ status: 'error', data: null, error: error.message })
     }
   }
-
-  const currentDemo = activePage === 'insights' ? insights.demo : activePage === 'results' ? analysis.demo : insights.demo || analysis.demo
 
   return (
     <div className="app-shell">
@@ -75,7 +84,6 @@ function App() {
         onNavigate={handleNavigate}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        isDemo={currentDemo}
       />
 
       <div className="app-main">
@@ -89,6 +97,7 @@ function App() {
         <main className="main-content">
           {activePage === 'advisor' && (
             <CareerAdvisor
+              roles={roles}
               targetRole={targetRole}
               setTargetRole={setTargetRole}
               currentSkills={currentSkills}
@@ -104,7 +113,6 @@ function App() {
               data={insights.data}
               status={insights.status}
               errorMessage={insights.error}
-              isDemo={insights.demo}
             />
           )}
 
@@ -114,7 +122,6 @@ function App() {
               results={analysis.data}
               status={analysis.status}
               errorMessage={analysis.error}
-              isDemo={analysis.demo}
             />
           )}
         </main>
